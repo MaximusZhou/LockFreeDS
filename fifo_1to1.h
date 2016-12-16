@@ -1,7 +1,7 @@
 /*
 ** 2016-12-15 19:59:20 zhougang
-** Ò»¸ölock-freeµÄÑ­»·¶ÓÁĞ£¬¿ÉÓÃÓÚµ¥Ïû·ÑÕß-µ¥Éú²úÕßÄ£Ê½
-** ÊµÏÖ·½Ê½ÀàËÆliunuxÄÚºËµÄKFIFOÊı¾İ½á¹¹
+** ä¸€ä¸ªlock-freeçš„å¾ªç¯é˜Ÿåˆ—ï¼Œå¯ç”¨äºå•æ¶ˆè´¹è€…-å•ç”Ÿäº§è€…æ¨¡å¼
+** å®ç°æ–¹å¼ç±»ä¼¼liunuxå†…æ ¸çš„KFIFOæ•°æ®ç»“æ„
 */
 
 #ifndef _FIFO_1TO1_H
@@ -16,11 +16,11 @@ typedef pthread_mutex_t lock_t;
 typedef void* TYPE;
 
 typedef struct fifo_1to1 {
-	TYPE *buffer;               //±£´æÊı¾İµÄbuff
-	unsigned int size;          //·ÖÅäµÄbuff´óĞ¡
-	unsigned int in;            //ÏÂÒ»¸öÊı¾İ±£´æµÄÎ»ÖÃ(in % size)
-	unsigned int out;           //ÏÂÒ»¸öÈ¡³öµÄÊı¾İ±£´æµÄÎ»ÖÃ(out % size)
-	lock_t *lock;           //Õë¶Ô¶àÏû·ÑÕß-¶àÉú²úÕßÄ£Ê½¼ÓµÄËø
+	TYPE *buffer;               //ä¿å­˜æ•°æ®çš„buff
+	unsigned int size;          //åˆ†é…çš„buffå¤§å°
+	unsigned int in;            //ä¸‹ä¸€ä¸ªæ•°æ®ä¿å­˜çš„ä½ç½®(in % size)
+	unsigned int out;           //ä¸‹ä¸€ä¸ªå–å‡ºçš„æ•°æ®ä¿å­˜çš„ä½ç½®(out % size)
+	lock_t *lock;           //é’ˆå¯¹å¤šæ¶ˆè´¹è€…-å¤šç”Ÿäº§è€…æ¨¡å¼åŠ çš„é”
 } fifo_1to1;
 
 
@@ -31,13 +31,13 @@ extern unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element)
 extern unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element);
 
 
-//ÎŞËø°æ±¾Çå³ıFIFOÖĞËùÓĞµÄÊı¾İ
+//æ— é”ç‰ˆæœ¬æ¸…é™¤FIFOä¸­æ‰€æœ‰çš„æ•°æ®
 static inline void __fifo_1to1_reset(fifo_1to1 *fifo)
 {
 	fifo->in = fifo->out = 0;
 }
 
-//¼ÓËø°æ±¾Çå³ıFIFOÖĞËùÓĞµÄÊı¾İ
+//åŠ é”ç‰ˆæœ¬æ¸…é™¤FIFOä¸­æ‰€æœ‰çš„æ•°æ®
 static inline void fifo_1to1_reset(fifo_1to1 *fifo)
 {
 	lock_op(fifo->lock);
@@ -47,13 +47,13 @@ static inline void fifo_1to1_reset(fifo_1to1 *fifo)
 	unlock_op(fifo->lock);
 }
 
-//ÎŞËø°æ»ñÈ¡FIFOÖĞÔªËØ¸öÊı
+//æ— é”ç‰ˆè·å–FIFOä¸­å…ƒç´ ä¸ªæ•°
 static inline unsigned int __fifo_1to1_len(fifo_1to1 *fifo)
 {
 	return fifo->in - fifo->out;
 }
 
-//¼ÓËø°æ»ñÈ¡FIFOÖĞÔªËØ¸öÊı
+//åŠ é”ç‰ˆè·å–FIFOä¸­å…ƒç´ ä¸ªæ•°
 static inline unsigned int fifo_1to1_len(fifo_1to1 *fifo)
 {
 	unsigned int ret;
@@ -67,7 +67,7 @@ static inline unsigned int fifo_1to1_len(fifo_1to1 *fifo)
 	return ret;
 }
 
-//¼ÓËø°æÍùFIFOÖĞ¼ÓÈëÒ»¸öÔªËØ
+//åŠ é”ç‰ˆå¾€FIFOä¸­åŠ å…¥ä¸€ä¸ªå…ƒç´ 
 static inline unsigned int fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element)
 {
 	unsigned int ret;
@@ -81,7 +81,7 @@ static inline unsigned int fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const ele
 	return ret;
 }
 
-//¼ÓËø°æ´ÓFIFOÖĞÌáÈ¡Ò»¸öÔªËØ
+//åŠ é”ç‰ˆä»FIFOä¸­æå–ä¸€ä¸ªå…ƒç´ 
 static unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element)
 {
 	unsigned int ret;
@@ -90,7 +90,7 @@ static unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element)
 
 	ret = __fifo_1to1_get(fifo, element);
 
-	//Èç¹ûÎª¿Õ£¬ÔòÖØÖÃin outµ½³õÊ¼Î»ÖÃ
+	//å¦‚æœä¸ºç©ºï¼Œåˆ™é‡ç½®in outåˆ°åˆå§‹ä½ç½®
 	if (fifo->in == fifo->out)
 		fifo->in = fifo->out = 0;
 
