@@ -4,3 +4,6 @@
 ** 实现方式类似liunux内核的KFIFO数据结构
 */
 
+#include <stdlib.h>
+#include "fifo_1to1.h"
+
