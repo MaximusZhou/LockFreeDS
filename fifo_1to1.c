@@ -117,3 +117,67 @@ void fifo_1to1_free(fifo_1to1 *fifo);
 	free(fifo->buffer);
 	free(fifo);
 }
+
+unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element, unsigned int elem_num);
+{
+	unsigned int num;
+	unsigned int type_len = sizeof(TYPE);
+
+	elem_num = min(elem_num, fifo->size - fifo->in + fifo->out);
+
+	/*  
+	 * Ensure that we sample the fifo->out index -before- we  
+	 * start putting bytes into the kfifo.  
+	*/
+	smp_mb();  
+	
+
+	/* first put the data starting from fifo->in to buffer end */
+	num = min(elem_num, fifo->size - (fifo->in & (fifo->size - 1)));
+	memcpy(fifo->buffer + (fifo->in & (fifo->size - 1)), buffer, num * type_len);
+
+	/* then put the rest (if any) at the beginning of the buffer */
+	memcpy(fifo->buffer, buffer + num, (elem_num - num) * type_len);
+
+	/*
+	 * Ensure that we add the bytes to the kfifo -before-
+	 *  we update the fifo->in index.
+	*/
+	smp_wmb(); 
+
+	fifo->in += elem_num;
+
+	return elem_num;
+}
+
+unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element, unsigned int elem_num)
+{
+	unsigned int num;
+	unsigned int type_len = sizeof(TYPE);
+
+	elem_num = min(elem_num, fifo->in - fifo->out);
+
+    /*
+	 * Ensure that we sample the fifo->in index -before- we 
+	 * start removing bytes from the kfifo.
+	*/
+	smp_rmb();
+
+	/* first get the data from fifo->out until the end of the buffer */
+	num = min(elem_num, fifo->size - (fifo->out & (fifo->size - 1)));
+	memcpy(buffer, fifo->buffer + (fifo->out & (fifo->size - 1)), num * type_len);
+
+	/* then get the rest (if any) from the beginning of the buffer */
+	memcpy(buffer + num, fifo->buffer, (elem_num - num) * type_len);
+
+	/*
+	 * Ensure that we remove the bytes from the kfifo -before-
+	 * we update the fifo->out index.
+	*/
+	smp_mb();
+
+	fifo->out += elem_num;
+
+
+	return elem_num;
+}
