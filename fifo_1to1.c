@@ -12,16 +12,18 @@
 #define BUG_ON(cond) assert(!cond)
 
 #if defined(__GNUC__) || defined(__x86_64__)
-#define TPOOL_COMPILER_BARRIER() __asm__ __volatile("" : : : "memory")
+#define mb() \
+	__asm__ __volatile__("mb": : :"memory")
 
-static inline void FullMemoryBarrier()
-{
-	    __asm__ __volatile__("mfence": : : "memory");
-}
+#define rmb() \
+	__asm__ __volatile__("mb": : :"memory")
 
-#define smp_mb() FullMemoryBarrier()
-#define smp_rmb() TPOOL_COMPILER_BARRIER()
-#define smp_wmb() TPOOL_COMPILER_BARRIER()
+#define wmb() \
+	__asm__ __volatile__("wmb": : :"memory")
+
+#define smp_mb() mb()
+#define smp_rmb() rmb()
+#define smp_wmb() wmb()
 
 #else
 #error "smp_mb has not been implemented for this architecture."
@@ -79,7 +81,7 @@ fifo_1to1* fifo_1to1_init(TYPE *buffer, unsigned int size, lock_t *lock)
 	BUG_ON(size & (size - 1));
 
 	fifo = malloc(sizeof(struct kfifo));
-	if (!fifo)
+	if (fifo == NULL)
 		return NULL;
 
 	fifo->buffer = buffer;
@@ -90,30 +92,42 @@ fifo_1to1* fifo_1to1_init(TYPE *buffer, unsigned int size, lock_t *lock)
 	return fifo;
 }
 
-fifo_1to1* fifo_1to1_alloc(unsigned int size, lock_t *lock)
+fifo_1to1* fifo_1to1_alloc(unsigned int size)
 {
 	TYPE *buffer;
 	fifo_1to1 *ret;
+	lock_t *lock;
 
 	if (size & (size - 1)) {
 		BUG_ON(size > 0x80000000);
 		size = roundup_pow_of_two(size);
 	}
 
-	buffer = malloc(size * sizeof(TYPE));
-	if (!buffer)
+	lock = (lock_t*)malloc(sizeof(lock_t));
+	if (lock == NULL)
 		return NULL;
+
+	buffer = malloc(size * sizeof(TYPE));
+	if (buffer == NULL)
+	{
+		free(lock);
+		return NULL;
+	}
 
 	ret = fifo_1to1_init(buffer, size, lock);
 
 	if (ret == NULL)
+	{
+		free(lock);
 		free(buffer);
+	}
 
 	return ret;
 }
 
 void fifo_1to1_free(fifo_1to1 *fifo);
 {
+	free(fifo->lock);
 	free(fifo->buffer);
 	free(fifo);
 }

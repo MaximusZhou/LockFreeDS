@@ -9,15 +9,18 @@
 
 #include <pthread.h>
 
+typedef pthread_mutex_t lock_t;
+
+#define init_lock(lock_ptr) pthread_mutex_init(lock_ptr, NULL)
 #define lock_op(lock_ptr) pthread_mutex_lock(lock_ptr)
+
 #define unlock_op(lock_ptr) pthread_mutex_unlock(lock_ptr)
 
-typedef pthread_mutex_t lock_t;
 typedef void* TYPE;
 
 typedef struct fifo_1to1 {
 	TYPE *buffer;               //保存数据的buff
-	unsigned int size;          //分配的buff大小
+	unsigned int size;          //分配的buff大小，即buff中TYPE值得个数
 	unsigned int in;            //下一个数据保存的位置(in % size)
 	unsigned int out;           //下一个取出的数据保存的位置(out % size)
 	lock_t *lock;           //针对多消费者-多生产者模式加的锁
@@ -25,10 +28,10 @@ typedef struct fifo_1to1 {
 
 
 extern fifo_1to1* fifo_1to1_init(TYPE *buffer, unsigned int size, lock_t *lock);
-extern fifo_1to1* fifo_1to1_alloc(unsigned int size, lock_t *lock);
+extern fifo_1to1* fifo_1to1_alloc(unsigned int size);
 extern void fifo_1to1_free(fifo_1to1 *fifo);
-extern unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element);
-extern unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element);
+extern unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element, unsigned int elem_num);
+extern unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element, unsigned int elem_num);
 
 
 //无锁版本清除FIFO中所有的数据
@@ -82,7 +85,7 @@ static inline unsigned int fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const ele
 }
 
 //加锁版从FIFO中提取一个元素
-static unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element)
+static unsigned int fifo_1to1_get(fifo_1to1 *fifo, TYPE *element)
 {
 	unsigned int ret;
 
