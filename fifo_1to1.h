@@ -71,13 +71,13 @@ static inline unsigned int fifo_1to1_len(fifo_1to1 *fifo)
 }
 
 //加锁版往FIFO中加入一个元素
-static inline unsigned int fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element)
+static inline unsigned int fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element, int elem_num)
 {
 	unsigned int ret;
 
 	lock_op(fifo->lock);
 
-	ret = __fifo_1to1_put(fifo, element);
+	ret = __fifo_1to1_put(fifo, element, elem_num);
 
 	unlock_op(fifo->lock);
 
@@ -85,13 +85,13 @@ static inline unsigned int fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const ele
 }
 
 //加锁版从FIFO中提取一个元素
-static unsigned int fifo_1to1_get(fifo_1to1 *fifo, TYPE *element)
+static unsigned int fifo_1to1_get(fifo_1to1 *fifo, TYPE *element, int elem_num)
 {
 	unsigned int ret;
 
 	lock_op(fifo->lock);
 
-	ret = __fifo_1to1_get(fifo, element);
+	ret = __fifo_1to1_get(fifo, element, elem_num);
 
 	//如果为空，则重置in out到初始位置
 	if (fifo->in == fifo->out)

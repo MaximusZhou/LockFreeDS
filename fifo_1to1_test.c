@@ -5,14 +5,14 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <error.h>
+#include <errno.h>
 #include <assert.h>
 #include <pthread.h>
 #include <time.h>
 
 #include "fifo_1to1.h"
 
-#define BUFFER_SIZE (1024 * 1024)
+#define BUFFER_SIZE 1023
 
 #define PRODUCE_THREAD_NUM 1
 #define CONSUME_THREAD_NUM 1
@@ -50,6 +50,8 @@ void* produce_task(void *arg)
 	fifo_1to1 *fifo = (fifo_1to1 *)arg;
 	for(;;)
 	{
+		int uid;
+		int lv;
 		user_info *info;
 		//检查是否结束了
 		pthread_mutex_lock(&pb_lock);
@@ -63,16 +65,19 @@ void* produce_task(void *arg)
 		time(&cur_time);
 		srand(cur_time);
 		
-		info = (user_info*)malloc(user_info);
+		info = (user_info*)malloc(sizeof(user_info));
 		if (info == 0)
 		{
 			fprintf(stderr,"produce malloc fail:%u, reason:%s\n", errno, strerror(errno));
 			return((void *)0);
 		}
-		info->uid = rand();
-		info->lv = (rand() % 100);
 
-		PUT_DATA(fifo, info, 1);
+		uid = rand();
+		lv = (rand() % 100);
+		info->uid = uid; 
+		info->lv = lv;
+
+		PUT_DATA(fifo, &info, 1);
 		
 		//生成的数据备份
 		pthread_mutex_lock(&pb_lock);
@@ -81,7 +86,8 @@ void* produce_task(void *arg)
 			pthread_mutex_unlock(&pb_lock);
 			return((void *)0);
 		}
-		produce_backup[pb_count] = {info->uid, info->lv};
+		produce_backup[pb_count].uid = uid;
+		produce_backup[pb_count].lv = lv;
 		pb_count++;
 		pthread_mutex_unlock(&pb_lock);
 
@@ -95,10 +101,12 @@ void* consume_task(void *arg)
 	fifo_1to1 *fifo = (fifo_1to1 *)arg;
 	for(;;)
 	{
-		user_info info;
+		user_info *info;
+		int uid;
+		int lv;
 		//检查是否结束了
 		pthread_mutex_lock(&cb_lock);
-		if (cb_count >= USER_NUM)
+		if (cb_count >= USER_NUM) //TODO: 可能fifo队列中有元素还free
 		{
 			pthread_mutex_unlock(&cb_lock);
 			return((void *)0);
@@ -107,7 +115,20 @@ void* consume_task(void *arg)
 
 		GET_DATA(fifo, &info, 1);
 
+		uid = info->uid;
+		lv = info->lv;
+		free(info);
 		//消费的数据备份
+		pthread_mutex_lock(&cb_lock);
+		if (cb_count >= USER_NUM)
+		{
+			pthread_mutex_unlock(&cb_lock);
+			return((void *)0);
+		}
+		consume_backup[cb_count].uid = uid;
+		consume_backup[cb_count].lv = lv;
+		cb_count++;
+		pthread_mutex_unlock(&cb_lock);
 	}
 	return((void *)0);
 }
@@ -115,19 +136,21 @@ void* consume_task(void *arg)
 
 int main()
 {
+	int i;
 	fifo_1to1* fifo;
 	pthread_t p_tids[PRODUCE_THREAD_NUM];
 	pthread_t c_tids[CONSUME_THREAD_NUM];
 	
 	fifo = fifo_1to1_alloc(BUFFER_SIZE);
-	if (buff == NULL)
+	if (fifo == NULL)
 	{
 		fprintf(stderr,"fail init fifo:%u, reason:%s\n", errno, strerror(errno));
+		exit(1);
 	}
 
 	for(i = 0; i < PRODUCE_THREAD_NUM; i ++)
 	{
-		err = pthread_create(&(p_tids[i]), NULL, produce_task, (void *)fifo);
+		int err = pthread_create(&(p_tids[i]), NULL, produce_task, (void *)fifo);
 		if (err != 0)
 		{
 			printf("can't create thread: %s\n", strerror(err));
@@ -137,7 +160,7 @@ int main()
 
 	for(i = 0; i < CONSUME_THREAD_NUM; i ++)
 	{
-		err = pthread_create(&(c_tids[i]), NULL, consume_task, (void *)fifo);
+		int err = pthread_create(&(c_tids[i]), NULL, consume_task, (void *)fifo);
 		if (err != 0)
 		{
 			printf("can't create thread: %s\n", strerror(err));
@@ -148,7 +171,7 @@ int main()
 
 	for(i = 0; i < PRODUCE_THREAD_NUM; i ++)
 	{
-		err = pthread_join(p_tids[i], NULL);
+		int err = pthread_join(p_tids[i], NULL);
 		if (err != 0)
 		{
 			printf("can't join thread: %s\n", strerror(err));
@@ -158,7 +181,7 @@ int main()
 
 	for(i = 0; i < CONSUME_THREAD_NUM; i ++)
 	{
-		err = pthread_join(c_tids[i], NULL);
+		int err = pthread_join(c_tids[i], NULL);
 		if (err != 0)
 		{
 			printf("can't join thread: %s\n", strerror(err));
@@ -168,6 +191,25 @@ int main()
 
 	fifo_1to1_free(fifo);	
 
+	//比较数据是否相同
+	if (pb_count != cb_count)
+	{
+		printf("produce count is not equal consume count errro: %d %d\n", pb_count, cb_count);
+		exit(1);
+	}
+
+	for(i = 0; i < pb_count; i ++)
+	{
+		if ((produce_backup[i].uid != consume_backup[i].uid) ||
+				(produce_backup[i].lv != consume_backup[i].lv))
+		{
+			printf("produce count is not equal consume count errro: %d %d %d %d\n",
+					                      produce_backup[i].uid, consume_backup[i].uid,
+										  produce_backup[i].lv, consume_backup[i].lv);
+			exit(1);
+		}
+	}
+	
+
 	return 0;
 }
-

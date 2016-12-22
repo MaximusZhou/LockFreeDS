@@ -9,21 +9,23 @@
 
 #include "fifo_1to1.h"
 
-#define BUG_ON(cond) assert(!cond)
+#define BUG_ON(cond) assert(!(cond))
 
 #if defined(__GNUC__) || defined(__x86_64__)
 #define mb() \
-	__asm__ __volatile__("mb": : :"memory")
+	__asm__ __volatile__("mfence": : :"memory")
 
 #define rmb() \
-	__asm__ __volatile__("mb": : :"memory")
+	__asm__ __volatile__("": : :"memory")
 
 #define wmb() \
-	__asm__ __volatile__("wmb": : :"memory")
+	__asm__ __volatile__("": : :"memory")
 
 #define smp_mb() mb()
 #define smp_rmb() rmb()
 #define smp_wmb() wmb()
+
+#define min(a,b) ((a) > (b) ? (b): (a))
 
 #else
 #error "smp_mb has not been implemented for this architecture."
@@ -70,7 +72,7 @@ static inline unsigned int __fls(unsigned int val)
 
 static inline unsigned int roundup_pow_of_two(unsigned int x)
 {
-	return (1U << fls(x - 1));
+	return (1U << __fls(x - 1));
 }
 
 fifo_1to1* fifo_1to1_init(TYPE *buffer, unsigned int size, lock_t *lock)
@@ -78,9 +80,10 @@ fifo_1to1* fifo_1to1_init(TYPE *buffer, unsigned int size, lock_t *lock)
 	fifo_1to1 *fifo;
 
 	/* size must be a power of 2 */
+	printf("size %d, %d %d \n", size, size-1, (size & size-1));
 	BUG_ON(size & (size - 1));
 
-	fifo = malloc(sizeof(struct kfifo));
+	fifo = malloc(sizeof(fifo_1to1));
 	if (fifo == NULL)
 		return NULL;
 
@@ -98,7 +101,8 @@ fifo_1to1* fifo_1to1_alloc(unsigned int size)
 	fifo_1to1 *ret;
 	lock_t *lock;
 
-	if (size & (size - 1)) {
+	if (size & (size - 1))
+	{
 		BUG_ON(size > 0x80000000);
 		size = roundup_pow_of_two(size);
 	}
@@ -125,14 +129,14 @@ fifo_1to1* fifo_1to1_alloc(unsigned int size)
 	return ret;
 }
 
-void fifo_1to1_free(fifo_1to1 *fifo);
+void fifo_1to1_free(fifo_1to1 *fifo)
 {
 	free(fifo->lock);
 	free(fifo->buffer);
 	free(fifo);
 }
 
-unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element, unsigned int elem_num);
+unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element, unsigned int elem_num)
 {
 	unsigned int num;
 	unsigned int type_len = sizeof(TYPE);
@@ -148,10 +152,10 @@ unsigned int __fifo_1to1_put(fifo_1to1 *fifo, const TYPE * const element, unsign
 
 	/* first put the data starting from fifo->in to buffer end */
 	num = min(elem_num, fifo->size - (fifo->in & (fifo->size - 1)));
-	memcpy(fifo->buffer + (fifo->in & (fifo->size - 1)), buffer, num * type_len);
+	memcpy(fifo->buffer + (fifo->in & (fifo->size - 1)), element, num * type_len);
 
 	/* then put the rest (if any) at the beginning of the buffer */
-	memcpy(fifo->buffer, buffer + num, (elem_num - num) * type_len);
+	memcpy(fifo->buffer, element + num, (elem_num - num) * type_len);
 
 	/*
 	 * Ensure that we add the bytes to the kfifo -before-
@@ -179,10 +183,10 @@ unsigned int __fifo_1to1_get(fifo_1to1 *fifo, TYPE *element, unsigned int elem_n
 
 	/* first get the data from fifo->out until the end of the buffer */
 	num = min(elem_num, fifo->size - (fifo->out & (fifo->size - 1)));
-	memcpy(buffer, fifo->buffer + (fifo->out & (fifo->size - 1)), num * type_len);
+	memcpy(element, fifo->buffer + (fifo->out & (fifo->size - 1)), num * type_len);
 
 	/* then get the rest (if any) from the beginning of the buffer */
-	memcpy(buffer + num, fifo->buffer, (elem_num - num) * type_len);
+	memcpy(element + num, fifo->buffer, (elem_num - num) * type_len);
 
 	/*
 	 * Ensure that we remove the bytes from the kfifo -before-
