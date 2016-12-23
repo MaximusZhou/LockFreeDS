@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include "fifo_1to1.h"
 
@@ -41,7 +42,7 @@
 static inline unsigned int __fls(unsigned int val)
 {
 	unsigned int bits_per_int = 32;
-	unsigned int num = bits_per_int - 1;
+	unsigned int num = bits_per_int;
 
 	//if (!(val & (~0ul << (bits_per_int-16)))) {
 	if (!(val & 0xffff0000u)) {
@@ -80,7 +81,7 @@ fifo_1to1* fifo_1to1_init(TYPE *buffer, unsigned int size, lock_t *lock)
 	fifo_1to1 *fifo;
 
 	/* size must be a power of 2 */
-	printf("size %d, %d %d \n", size, size-1, (size & size-1));
+	//printf("size %d, %d %d \n", size, size-1, (size & size-1));
 	BUG_ON(size & (size - 1));
 
 	fifo = malloc(sizeof(fifo_1to1));
