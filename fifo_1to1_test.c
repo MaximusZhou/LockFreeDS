@@ -1,6 +1,7 @@
 /*
 ** 2016-12-15 19:59:20 zhougang
 ** 测试fifo_1to1实现
+** gcc -Wall -Wno-unused-function -lpthread fifo_1to1.c fifo_1to1_test.c  -o fifo_1to1_test
 */
 
 #include <stdlib.h>
@@ -9,6 +10,8 @@
 #include <assert.h>
 #include <pthread.h>
 #include <time.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "fifo_1to1.h"
 
@@ -34,7 +37,7 @@ typedef struct user_info {
 	unsigned int lv;
 } user_info;
 
-#define USER_NUM 10000
+#define USER_NUM 1000000
 
 static user_info produce_backup[USER_NUM];
 static int pb_count = 0;
@@ -46,24 +49,32 @@ pthread_mutex_t cb_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void* produce_task(void *arg)
 {
-	time_t cur_time;
+	//time_t cur_time;
 	fifo_1to1 *fifo = (fifo_1to1 *)arg;
+	unsigned int tid = (unsigned int)pthread_self();
 	for(;;)
 	{
-		int uid;
-		int lv;
+		unsigned int uid;
+		unsigned int lv;
 		user_info *info;
+		int put_num;
+
 		//检查是否结束了
-		pthread_mutex_lock(&pb_lock);
+		if (PRODUCE_THREAD_NUM > 1)
+			pthread_mutex_lock(&pb_lock);
 		if (pb_count >= USER_NUM)
 		{
-			pthread_mutex_unlock(&pb_lock);
+			if (PRODUCE_THREAD_NUM > 1)
+				pthread_mutex_unlock(&pb_lock);
 			return((void *)0);
 		}
-		pthread_mutex_unlock(&pb_lock);
+		if (PRODUCE_THREAD_NUM > 1)
+			pthread_mutex_unlock(&pb_lock);
 
+		/*
 		time(&cur_time);
 		srand(cur_time);
+		*/
 		
 		info = (user_info*)malloc(sizeof(user_info));
 		if (info == 0)
@@ -72,25 +83,35 @@ void* produce_task(void *arg)
 			return((void *)0);
 		}
 
-		uid = rand();
-		lv = (rand() % 100);
+		uid = rand() + tid;
+		lv = rand() % 100;
 		info->uid = uid; 
 		info->lv = lv;
 
-		PUT_DATA(fifo, &info, 1);
+		put_num = PUT_DATA(fifo, (TYPE *)&info, 1);
+		if (put_num <= 0)
+		{
+			continue;
+		}
 		
 		//生成的数据备份
-		pthread_mutex_lock(&pb_lock);
+		if (PRODUCE_THREAD_NUM > 1)
+			pthread_mutex_lock(&pb_lock);
 		if (pb_count >= USER_NUM)
 		{
-			pthread_mutex_unlock(&pb_lock);
+			if (PRODUCE_THREAD_NUM > 1) 
+				pthread_mutex_unlock(&pb_lock);
 			return((void *)0);
 		}
-		produce_backup[pb_count].uid = uid;
-		produce_backup[pb_count].lv = lv;
+		if ((PRODUCE_THREAD_NUM == 1) && (CONSUME_THREAD_NUM == 1))
+		{
+			produce_backup[pb_count].uid = uid;
+			produce_backup[pb_count].lv = lv;
+		}
 		pb_count++;
-		pthread_mutex_unlock(&pb_lock);
-
+		if (PRODUCE_THREAD_NUM > 1) 
+			pthread_mutex_unlock(&pb_lock);
+		usleep(10);
 	}
 
 	return((void *)0);
@@ -99,36 +120,53 @@ void* produce_task(void *arg)
 void* consume_task(void *arg)
 {
 	fifo_1to1 *fifo = (fifo_1to1 *)arg;
+	//unsigned int tid = (unsigned int)pthread_self();
 	for(;;)
 	{
 		user_info *info;
-		int uid;
-		int lv;
+		unsigned int uid;
+		unsigned int lv;
+		int get_num;
+
 		//检查是否结束了
-		pthread_mutex_lock(&cb_lock);
+		if (CONSUME_THREAD_NUM > 1)
+			pthread_mutex_lock(&cb_lock);
 		if (cb_count >= USER_NUM) //TODO: 可能fifo队列中有元素还free
 		{
-			pthread_mutex_unlock(&cb_lock);
+			if (CONSUME_THREAD_NUM > 1)
+				pthread_mutex_unlock(&cb_lock);
 			return((void *)0);
 		}
-		pthread_mutex_unlock(&cb_lock);
+		if (CONSUME_THREAD_NUM > 1)
+			pthread_mutex_unlock(&cb_lock);
 
-		GET_DATA(fifo, &info, 1);
+		get_num = GET_DATA(fifo, (TYPE *)&info, 1);
+		if (get_num <= 0)
+		{
+			continue;
+		}
 
 		uid = info->uid;
 		lv = info->lv;
 		free(info);
 		//消费的数据备份
-		pthread_mutex_lock(&cb_lock);
+		if (CONSUME_THREAD_NUM > 1)
+			pthread_mutex_lock(&cb_lock);
 		if (cb_count >= USER_NUM)
 		{
-			pthread_mutex_unlock(&cb_lock);
+			if (CONSUME_THREAD_NUM > 1)
+				pthread_mutex_unlock(&cb_lock);
 			return((void *)0);
 		}
-		consume_backup[cb_count].uid = uid;
-		consume_backup[cb_count].lv = lv;
+		if ((PRODUCE_THREAD_NUM == 1) && (CONSUME_THREAD_NUM == 1))
+		{
+			consume_backup[cb_count].uid = uid;
+			consume_backup[cb_count].lv = lv;
+		}
 		cb_count++;
-		pthread_mutex_unlock(&cb_lock);
+		if (CONSUME_THREAD_NUM > 1)
+			pthread_mutex_unlock(&cb_lock);
+		usleep(10);
 	}
 	return((void *)0);
 }
@@ -148,6 +186,7 @@ int main()
 		exit(1);
 	}
 
+	printf("start create produce thread.\n");
 	for(i = 0; i < PRODUCE_THREAD_NUM; i ++)
 	{
 		int err = pthread_create(&(p_tids[i]), NULL, produce_task, (void *)fifo);
@@ -157,7 +196,9 @@ int main()
 			exit(1);
 		}
 	}
+	printf("end create produce thread.\n");
 
+	printf("start create consume thread.\n");
 	for(i = 0; i < CONSUME_THREAD_NUM; i ++)
 	{
 		int err = pthread_create(&(c_tids[i]), NULL, consume_task, (void *)fifo);
@@ -167,8 +208,9 @@ int main()
 			exit(1);
 		}
 	}
+	printf("end create consume thread.\n");
 
-
+	printf("produce thread join.\n");
 	for(i = 0; i < PRODUCE_THREAD_NUM; i ++)
 	{
 		int err = pthread_join(p_tids[i], NULL);
@@ -178,7 +220,9 @@ int main()
 			exit(1);
 		}
 	}
+	printf("produce thread end.\n");
 
+	printf("consume thread join.\n");
 	for(i = 0; i < CONSUME_THREAD_NUM; i ++)
 	{
 		int err = pthread_join(c_tids[i], NULL);
@@ -188,6 +232,7 @@ int main()
 			exit(1);
 		}
 	}
+	printf("consume thread end.\n");
 
 	fifo_1to1_free(fifo);	
 
@@ -198,18 +243,24 @@ int main()
 		exit(1);
 	}
 
-	for(i = 0; i < pb_count; i ++)
+	if ((PRODUCE_THREAD_NUM == 1) && (CONSUME_THREAD_NUM == 1))
 	{
-		if ((produce_backup[i].uid != consume_backup[i].uid) ||
-				(produce_backup[i].lv != consume_backup[i].lv))
+		printf("start compare produce data order and consume data order.\n");
+		for(i = 0; i < pb_count; i ++)
 		{
-			printf("produce count is not equal consume count errro: %d %d %d %d\n",
-					                      produce_backup[i].uid, consume_backup[i].uid,
-										  produce_backup[i].lv, consume_backup[i].lv);
-			exit(1);
+			if ((produce_backup[i].uid != consume_backup[i].uid) ||
+					(produce_backup[i].lv != consume_backup[i].lv))
+			{
+				printf("produce count is not equal consume count errro idx %d: %u %u %u %u\n",
+											  i, produce_backup[i].uid, consume_backup[i].uid,
+											  produce_backup[i].lv, consume_backup[i].lv);
+				exit(1);
+			}
 		}
+		printf("end compare produce data order and consume data order.\n");
 	}
-	
+
+	printf("test end.\n");
 
 	return 0;
 }
