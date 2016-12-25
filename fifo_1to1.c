@@ -17,10 +17,10 @@
 	__asm__ __volatile__("mfence": : :"memory")
 
 #define rmb() \
-	__asm__ __volatile__("": : :"memory")
+	__asm__ __volatile__("lfence": : :"memory")
 
 #define wmb() \
-	__asm__ __volatile__("": : :"memory")
+	__asm__ __volatile__("sfence": : :"memory")
 
 #define smp_mb() mb()
 #define smp_rmb() rmb()

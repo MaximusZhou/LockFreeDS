@@ -1,6 +1,6 @@
 /*
 ** 2016-12-15 19:59:20 zhougang
-** 测试fifo_1to1实现
+** 测试fifo_1to1.c fifo_1to1.h实现
 ** gcc -Wall -Wno-unused-function -lpthread fifo_1to1.c fifo_1to1_test.c  -o fifo_1to1_test
 */
 
@@ -131,7 +131,7 @@ void* consume_task(void *arg)
 		//检查是否结束了
 		if (CONSUME_THREAD_NUM > 1)
 			pthread_mutex_lock(&cb_lock);
-		if (cb_count >= USER_NUM) //TODO: 可能fifo队列中有元素还free
+		if (cb_count >= USER_NUM) //TODO: 如果多个生产者线程，可能fifo队列中有元素还没free
 		{
 			if (CONSUME_THREAD_NUM > 1)
 				pthread_mutex_unlock(&cb_lock);
@@ -237,6 +237,7 @@ int main()
 	fifo_1to1_free(fifo);	
 
 	//比较数据是否相同
+	printf("produce total data count %d, consume total data count %d\n", pb_count, cb_count);
 	if (pb_count != cb_count)
 	{
 		printf("produce count is not equal consume count errro: %d %d\n", pb_count, cb_count);
@@ -248,6 +249,10 @@ int main()
 		printf("start compare produce data order and consume data order.\n");
 		for(i = 0; i < pb_count; i ++)
 		{
+			/*
+			  printf("queue info uid:%u,%u lv:%u,%u\n", 
+					produce_backup[i].uid ,consume_backup[i].uid, produce_backup[i].lv, consume_backup[i].lv);
+			*/
 			if ((produce_backup[i].uid != consume_backup[i].uid) ||
 					(produce_backup[i].lv != consume_backup[i].lv))
 			{
