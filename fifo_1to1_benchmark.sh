@@ -30,6 +30,7 @@ TIME_INFO=`date +%s$SEP_SIGN%N`
 #echo $TIME_INFO
 START_SEC=`echo $TIME_INFO | awk -F $SEP_SIGN '{print $1}'`
 START_NOS=`echo $TIME_INFO | awk -F $SEP_SIGN '{print $2}'`
+START_NOS=`echo $START_NOS|sed 's/^0*//'` #remove the "0"s in front of the numbers first
 #echo "$START_SEC$SEP_SIGN$START_NOS"
 
 for((i=1;i<=$RUN_COUNT;i++))
@@ -43,6 +44,7 @@ TIME_INFO=`date +%s$SEP_SIGN%N`
 #echo $TIME_INFO
 END_SEC=`echo $TIME_INFO | awk -F $SEP_SIGN '{print $1}'`
 END_NOS=`echo $TIME_INFO | awk -F $SEP_SIGN '{print $2}'`
+END_NOS=`echo $END_NOS|sed 's/^0*//'`
 #echo "$END_SEC$SEP_SIGN$END_NOS"
 
 CONSUME_MS=$((($END_SEC - $START_SEC)*1000+$END_NOS/1000000-$START_NOS/1000000))
