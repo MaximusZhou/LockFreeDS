@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# 2017-1-2 21:34:59 zhougang
+# 测试fifo_1to1.c fifo_1to1.h 加锁版本与非加锁版本运行多次平均性能评测
+# 脚步参数分别是总运行次数、测试类型（0 Lock-Free版本 1 加锁版本）、每次运行数据数量
+# 比如：$./fifo_1to1_benchmark.sh 123 1 10000，表示每次运行10000个数据通信，一共运行123次
+
 if [ $# -ne 3 ];then
 	echo "USAGE: $0 runcount testype datanum"
 	exit 1;
