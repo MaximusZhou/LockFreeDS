@@ -6,3 +6,4 @@
     fifo_1to1.c fifo_1to1.h  //类似于Linux内核KFIFO的Lock-Free实现，用于单生产者和单消费者时非常高效
     fifo_1to1_test.c         //对fifo_1to1实现正确性测试
     fifo_1to1_benchmark.c    //对使用fifo_1to1与通常使用mutex情况进行性能对比
+    fifo_1to1_benchmark.sh   //一个shell脚本，对使用fifo_1to1与通常使用mutex情况执行多次，取平均值得一个性能对比
