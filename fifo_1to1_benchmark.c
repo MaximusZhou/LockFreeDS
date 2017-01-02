@@ -2,7 +2,7 @@
 ** 2016-12-15 19:59:20 zhougang
 ** 测试fifo_1to1.c fifo_1to1.h 加锁版本与非加锁版本性能评测
 ** gcc -Wall -Wno-unused-function -lpthread fifo_1to1.c fifo_1to1_benchmark.c  -o fifo_1to1_benchmark
-** time ./fifo_1to1_benchmark [1 [10000000]]
+** time ./fifo_1to1_benchmark [1 [10000000]] 1表示加锁版本（0或者默认表示Lock-Free版本） 10000000测试的数据量
 */
 
 #include <stdlib.h>
